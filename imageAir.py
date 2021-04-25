@@ -3,11 +3,11 @@
 import numpy as np
 import cv2
 
-# TODO add image as argument
+# TODO add arguments
 # Configuration parameters
 inputImage = "test.jpg"
-airyDiskResolution = 8  # array size for one airy disk
-disksPerPixel = 4  # meaning a pixel will be represented by 32x32 airyDisks
+pixelsPerOutputDisk = 64  # array size for one airy disk
+disksPerInputPixel = 16  # meaning a pixel will be represented by 32x32 airyDisks
 
 # Note: cv2 works in BGR channel order
 baseImage = cv2.imread(inputImage)
@@ -27,8 +27,8 @@ blueBaseChannel, greenBaseChannel, redBaseChannel = cv2.split(baseImage)
 # TODO: create function for gaussian
 # Initializing value of x-axis and y-axis
 # in the range -1 to 1
-x, y = np.meshgrid(np.linspace(-1, 1, airyDiskResolution),
-                   np.linspace(-1, 1, airyDiskResolution))
+x, y = np.meshgrid(np.linspace(-1, 1, pixelsPerOutputDisk),
+                   np.linspace(-1, 1, pixelsPerOutputDisk))
 dst = np.sqrt(x * x + y * y)
 
 # Intializing sigma and muu
@@ -39,40 +39,45 @@ muu = 0.000
 gauss = np.exp(-((dst - muu)**2 / (2.0 * sigma**2)))
 
 
-def pixelToAiryDisks(pixelBrightness, gaussian, disksPerPixel):
+# create airyDisk area from one pixel value
+def pixelToAiryDisks(pixelBrightness, gaussian, disksPerInputPixel):
     airyDisk = pixelBrightness * gaussian
-    airyDiskPixelEquivalent = np.tile(airyDisk, [disksPerPixel, disksPerPixel])
+    airyDiskPixelEquivalent = np.tile(airyDisk,
+                                      [disksPerInputPixel, disksPerInputPixel])
     return airyDiskPixelEquivalent
 
 
-def airyDisksChannel(colorChannel, outputAiryChannel, gaussian, disksPerPixel, airyDiskResolution):
+# create airyDisk replacement for every pixel in channel
+def airyDisksChannel(colorChannel, outputAiryChannel, gaussian,
+                     disksPerInputPixel, pixelsPerOutputDisk):
     for rowIndex, row in enumerate(colorChannel):
         for columnIndex, brightnessValue in enumerate(row):
-            outputRowIndex = rowIndex * pixelOffset
-            outputColumnIndex = columnIndex * pixelOffset
-            outputAiryChannel[outputRowIndex:outputRowIndex + pixelOffset, outputColumnIndex:outputColumnIndex + pixelOffset] = pixelToAiryDisks(
-                brightnessValue, gaussian, disksPerPixel)
+            outputRowIndex = rowIndex * outputScaleFactor
+            outputColumnIndex = columnIndex * outputScaleFactor
+            outputAiryChannel[outputRowIndex:outputRowIndex +
+                              outputScaleFactor,
+                              outputColumnIndex:outputColumnIndex +
+                              outputScaleFactor] = pixelToAiryDisks(
+                                  brightnessValue, gaussian,
+                                  disksPerInputPixel)
 
     return outputAiryChannel
 
 
 row, col = blueBaseChannel.shape
-pixelOffset = disksPerPixel * airyDiskResolution
-outputImage = np.ndarray(
-    (3, row * pixelOffset, col * pixelOffset), dtype=int)
-
-outputImage = outputImage.astype(np.uint8)
+outputScaleFactor = disksPerInputPixel * pixelsPerOutputDisk
+outputImage = np.ndarray((3, row * outputScaleFactor, col * outputScaleFactor),
+                         dtype=np.uint8)
 
 outputImageBlue, outputImageGreen, outputImageRed = outputImage
 
-outputImageBlue = airyDisksChannel(
-    blueBaseChannel, outputImageBlue, gauss, disksPerPixel, airyDiskResolution)
+outputImageBlue = airyDisksChannel(blueBaseChannel, outputImageBlue, gauss,
+                                   disksPerInputPixel, pixelsPerOutputDisk)
 
-outputImage = np.dstack([outputImageBlue,
-                         outputImageGreen, outputImageRed])
+outputImage = np.dstack([outputImageBlue, outputImageGreen, outputImageRed])
 
 cv2.imshow('image', outputImage)
-cv2.imwrite('output.jpg',  outputImage)
+cv2.imwrite('output.jpg', outputImage)
 cv2.waitKey(0)
 
 cv2.imshow('image', blueBaseChannel)
@@ -83,7 +88,6 @@ cv2.waitKey(0)
 # create airy disk based on each pixel value for each channel ---> 32x32 size
 # TODO configure airy disk size / pixel
 # create airy disk image which will be 32*Xx32*Y pixels
-
 
 # get pixel size of new image (default 10kx10k)
 
@@ -100,3 +104,5 @@ cv2.waitKey(0)
 # and R + G + B
 
 # Output image
+
+# TODO add __main__
