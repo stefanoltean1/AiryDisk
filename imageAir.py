@@ -4,8 +4,10 @@ import numpy as np
 import cv2
 
 # TODO add image as argument
+# Configuration parameters
 inputImage = "test.jpg"
-airyDiskSize = (36, 36)
+airyDiskResolution = 8  # array size for one airy disk
+disksPerPixel = 4  # meaning a pixel will be represented by 32x32 airyDisks
 
 # Note: cv2 works in BGR channel order
 baseImage = cv2.imread(inputImage)
@@ -14,9 +16,7 @@ print(np.shape(baseImage))
 
 # take each channel of base image and create airy disk images
 
-baseRedChannel = baseImage[:,:,0]
-print(baseRedChannel)
-firstBluePixel = baseImage.item(0,0,0)
+blueBaseChannel, greenBaseChannel, redBaseChannel = cv2.split(baseImage)
 
 # mean = (1,)
 #
@@ -24,38 +24,58 @@ firstBluePixel = baseImage.item(0,0,0)
 #
 # x = np.random.multivariate_normal(mean, cov, airyDiskSize)
 
+# TODO: create function for gaussian
 # Initializing value of x-axis and y-axis
 # in the range -1 to 1
-x, y = np.meshgrid(np.linspace(-1,1,36), np.linspace(-1,1,36))
-dst = np.sqrt(x*x+y*y)
+x, y = np.meshgrid(np.linspace(-1, 1, airyDiskResolution),
+                   np.linspace(-1, 1, airyDiskResolution))
+dst = np.sqrt(x * x + y * y)
 
 # Intializing sigma and muu
 sigma = 1
 muu = 0.000
 
 # Calculating Gaussian array
-gauss = np.exp(-( (dst-muu)**2 / ( 2.0 * sigma**2 ) ) )
+gauss = np.exp(-((dst - muu)**2 / (2.0 * sigma**2)))
 
-# print("2D Gaussian array :\n")
-# print(gauss)
-#
-# print(firstBluePixel)
 
-# normalise pixel brightness value
-firstAiryDisk = gauss * firstBluePixel
+def pixelToAiryDisks(pixelBrightness, gaussian, disksPerPixel):
+    airyDisk = pixelBrightness * gaussian
+    airyDiskPixelEquivalent = np.tile(airyDisk, [disksPerPixel, disksPerPixel])
+    return airyDiskPixelEquivalent
 
-# TODO: create airy disk image from all pixels
 
-# print(firstAiryDisk)
-#
-# print(np.shape(firstAiryDisk))
+def airyDisksChannel(colorChannel, outputAiryChannel, gaussian, disksPerPixel, airyDiskResolution):
+    for rowIndex, row in enumerate(colorChannel):
+        for columnIndex, brightnessValue in enumerate(row):
+            outputRowIndex = rowIndex * pixelOffset
+            outputColumnIndex = columnIndex * pixelOffset
+            outputAiryChannel[outputRowIndex:outputRowIndex + pixelOffset, outputColumnIndex:outputColumnIndex + pixelOffset] = pixelToAiryDisks(
+                brightnessValue, gaussian, disksPerPixel)
 
-# normalise befoew imshow. Don't know why...
-# possibly because this is a 2D matrix, normally image is X x Y x B/G/R (3 channels)
-cv2.imshow('image',firstAiryDisk/255)
+    return outputAiryChannel
+
+
+row, col = blueBaseChannel.shape
+pixelOffset = disksPerPixel * airyDiskResolution
+outputImage = np.ndarray(
+    (3, row * pixelOffset, col * pixelOffset), dtype=int)
+
+outputImage = outputImage.astype(np.uint8)
+
+outputImageBlue, outputImageGreen, outputImageRed = outputImage
+
+outputImageBlue = airyDisksChannel(
+    blueBaseChannel, outputImageBlue, gauss, disksPerPixel, airyDiskResolution)
+
+outputImage = np.dstack([outputImageBlue,
+                         outputImageGreen, outputImageRed])
+
+cv2.imshow('image', outputImage)
+cv2.imwrite('output.jpg',  outputImage)
 cv2.waitKey(0)
 
-cv2.imshow('image',baseRedChannel)
+cv2.imshow('image', blueBaseChannel)
 cv2.waitKey(0)
 
 # pad area surrounding each pixel to "increase resolution
