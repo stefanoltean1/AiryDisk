@@ -17,7 +17,7 @@ redWavelength_um = 0.520
 
 # camera properties
 # assume image captured by camera is same size as aperture
-fStopValue = 18  #unitless
+fStopValue = 10  #unitless
 focalLength_mm = 55  #mm
 apertureDiameter_mm = focalLength_mm / fStopValue  #mm
 
